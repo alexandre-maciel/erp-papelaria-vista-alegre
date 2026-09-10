@@ -4,6 +4,7 @@ import {
   activeSession,
   cashBalance,
   createDemo,
+  dailyCash,
   dayKey,
   saleTotal,
   summarize,
@@ -55,6 +56,27 @@ const sell = (state, payment = "Dinheiro") =>
     payment,
     received: 5000,
   });
+
+test("daily closing replaces suggestions, isolates dates and excludes cards from profit", () => {
+  const original = sell(initial(), "Pix");
+  const date = dayKey();
+  assert.equal(dailyCash(original, date).pix, 4000);
+  const values = { pix: 20000, cash: 30000, credit: 90000, debit: 70000, transurc: 5000, cardmais: 2000 };
+  const saved = transact(original, { type: "dailyClosing", date, values });
+  assert.equal(dailyCash(saved, date).profit, 43000);
+  assert.equal(dailyCash(saved, date).pix, 20000);
+  assert.equal(dailyCash(saved, "2020-01-01").profit, 0);
+  assert.equal(original.dailyClosings, undefined);
+  const edited = transact(saved, { type: "dailyClosing", date, values: { ...values, transurc: 60000 } });
+  assert.equal(dailyCash(edited, date).profit, -12000);
+  const closed = transact(saved, { type: "close", amount: 10000 });
+  assert.throws(() => transact(closed, { type: "dailyClosing", date, values }), /caixa está fechado/);
+  assert.equal(dailyCash(closed, date).profit, 43000);
+  const reopened = transact(closed, { type: "open", amount: 10000 });
+  assert.equal(dailyCash(transact(reopened, { type: "dailyClosing", date, values }), date).profit, 43000);
+  assert.throws(() => transact(saved, { type: "dailyClosing", date, values: { ...values, cash: -1 } }));
+  assert.throws(() => transact(saved, { type: "dailyClosing", date: "2026-02-30", values }));
+});
 
 test("cash sale changes physical balance by total, not tender; stock and costs are captured", () => {
   const state = sell(initial());

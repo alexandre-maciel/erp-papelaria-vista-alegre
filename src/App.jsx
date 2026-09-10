@@ -7,10 +7,10 @@ import {
   Banknote,
   Barcode,
   Bell,
-  BookOpen,
   CalendarDays,
   Check,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   CircleHelp,
   CreditCard,
@@ -31,7 +31,6 @@ import {
   ShoppingCart,
   Sparkles,
   Store,
-  Tag,
   Trash2,
   TrendingUp,
   Wallet,
@@ -43,6 +42,7 @@ import {
   cashBalance,
   cents,
   createDemo,
+  dailyCash,
   dayKey,
   money,
   payments,
@@ -82,23 +82,6 @@ const time = (value) =>
 const paymentIcon = (p) =>
   p === "Dinheiro" ? Banknote : p === "Pix" ? Sparkles : CreditCard;
 
-function ProductIcon({ product, small = false }) {
-  const Icon =
-    product.type === "service"
-      ? Printer
-      : product.category === "Eletrônicos"
-        ? Tag
-        : product.category === "Bolsas e acessórios"
-          ? ShoppingBag
-          : BookOpen;
-  return (
-    <span
-      className={`product-icon ${product.color || "purple"} ${small ? "small" : ""}`}
-    >
-      <Icon size={small ? 17 : 22} strokeWidth={1.7} />
-    </span>
-  );
-}
 function Badge({ children, tone = "green" }) {
   return <span className={`badge ${tone}`}>{children}</span>;
 }
@@ -206,6 +189,7 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todas as categorias");
   const [lowOnly, setLowOnly] = useState(false);
+  const [billFilter, setBillFilter] = useState("Todas");
   const [selectedDate, setSelectedDate] = useState(dayKey());
   const [chartPeriod, setChartPeriod] = useState("week");
   const [reportFrom, setReportFrom] = useState(
@@ -305,7 +289,7 @@ export default function App() {
   function salesTable(sales, full = false) {
     return sales.length ? (
       <div className="table-scroll">
-        <table>
+        <table className="responsive-table">
           <thead>
             <tr>
               <th>Venda / Produto</th>
@@ -334,7 +318,7 @@ export default function App() {
                     </div>
                   </div>
                 </td>
-                <td>
+                <td data-label="Pagamento">
                   <span className="payment-label">
                     {(() => {
                       const Icon = paymentIcon(s.payment);
@@ -343,12 +327,12 @@ export default function App() {
                     {s.payment}
                   </span>
                 </td>
-                <td className="muted">
+                <td data-label={full ? "Data e hora" : "Horário"} className="muted">
                   {full ? `${formatDate(dayKey(s.at))}, ` : ""}
                   {time(s.at)}
                 </td>
-                <td className="align-right amount">{money(saleTotal(s))}</td>
-                <td>
+                <td data-label="Valor" className="align-right amount">{money(saleTotal(s))}</td>
+                <td data-label="Situação">
                   <Badge tone={s.cancelled ? "gray" : "green"}>
                     {s.cancelled ? "Cancelada" : "Concluída"}
                   </Badge>
@@ -528,35 +512,27 @@ export default function App() {
               <span className="avatar small-avatar">VA</span>
             </div>
           </header>
-          <main className="main-content">
+          <main className="main-content" data-page={page}>
             <div className="page-heading">
               <div>
-                <div className="heading-kicker">
-                  {page === "dashboard"
-                    ? "Um novo dia, novas possibilidades"
-                    : "Papelaria Vista Alegre"}
-                </div>
                 <h1>
                   {page === "dashboard"
-                    ? "Sua loja, em dia."
+                    ? "Visão geral"
                     : currentPage.label}
-                  {page === "dashboard" && (
-                    <span className="sun-doodle">✳</span>
-                  )}
                 </h1>
                 <p>
                   {
                     {
                       dashboard:
-                        "Acompanhe o movimento e cuide do que importa.",
+                        "Vendas, caixa e pendências da sua loja.",
                       sales:
-                        "Cada venda registrada. Cada detalhe sob controle.",
+                        "Selecione os produtos, escolha o pagamento e conclua a venda.",
                       stock: "Organize seus produtos, custos e serviços.",
                       cash: "Acompanhe cada entrada e saída do seu dia.",
                       bills: "Organize os vencimentos e evite surpresas.",
                       labels:
-                        "Do cadastro para a prateleira, com tudo identificado.",
-                      reports: "Entenda os números por trás do seu negócio.",
+                        "Selecione os produtos e a quantidade de etiquetas para imprimir.",
+                      reports: "Consulte vendas, custos e despesas por período.",
                     }[page]
                   }
                 </p>
@@ -575,10 +551,10 @@ export default function App() {
                     />
                   </label>
                 )}
-                {["dashboard", "sales"].includes(page) && (
+                {page === "dashboard" && (
                   <button
                     className="button primary"
-                    onClick={() => setModal({ type: "sale" })}
+                    onClick={() => navigate("sales")}
                   >
                     <Plus size={19} />
                     Nova venda
@@ -605,6 +581,7 @@ export default function App() {
                 {page === "cash" && (
                   <button
                     className="button primary"
+                    disabled={!session}
                     onClick={() => setModal({ type: "movement" })}
                   >
                     <Plus size={18} />
@@ -644,20 +621,20 @@ export default function App() {
                     }
                   />
                   <Metric
-                    label="Lucro estimado"
-                    value={money(today.profit)}
+                    label="Lucro do dia"
+                    value={money(dailyCash(state, selectedDate).profit)}
                     icon={TrendingUp}
                     color="green"
                     footer={
                       <>
                         <span className="tiny-dot green" />
-                        Após custos e despesas
+                        PIX + dinheiro − Transurc − CardMais
                       </>
                     }
                   />
                   <Metric
                     label="Dinheiro em caixa"
-                    value={money(session ? cashBalance(state, session.id) : 0)}
+                    value={money(dailyCash(state, selectedDate).cash)}
                     icon={Wallet}
                     color="purple"
                     featured
@@ -666,9 +643,7 @@ export default function App() {
                         <span
                           className={`status-dot ${session ? "" : "closed"}`}
                         />
-                        {session
-                          ? `Caixa aberto às ${time(session.openedAt)}`
-                          : "Caixa fechado"}
+                        {`Valor de ${formatDate(selectedDate)}`}
                         <button
                           aria-label="Ver fluxo de caixa"
                           onClick={() => navigate("cash")}
@@ -729,8 +704,8 @@ export default function App() {
                   </div>
                   <div className="dashboard-secondary">
                     <section className="panel shortcuts-panel">
-                      <h2>Vamos facilitar seu dia?</h2>
-                      <p>O que você precisa fazer agora?</p>
+                      <h2>Atalhos da loja</h2>
+                      <p>Cadastro, despesas e operação do caixa.</p>
                       <div className="shortcut-grid">
                         <button onClick={() => setModal({ type: "product" })}>
                           <span className="purple">
@@ -770,17 +745,16 @@ export default function App() {
                       <div className="panel-heading">
                         <h2>
                           <span className="alert-dot" />
-                          Estoque pedindo atenção
+                          Estoque baixo
                         </h2>
                         <span className="count-bubble amber">
                           {lowProducts.length}
                         </span>
                       </div>
-                      <p>Vale colocar na próxima reposição.</p>
+                      <p>Produtos que precisam de reposição.</p>
                       <div className="low-list">
                         {lowProducts.slice(0, 3).map((p) => (
                           <div key={p.id}>
-                            <ProductIcon product={p} small />
                             <div>
                               <strong>{p.name}</strong>
                               <small>Mínimo: {p.minimum} unidades</small>
@@ -895,6 +869,7 @@ export default function App() {
                     <label className="search-field">
                       <Search size={18} />
                       <input
+                        aria-label="Buscar produtos por nome ou código"
                         placeholder="Buscar nome ou código de barras..."
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
@@ -913,7 +888,7 @@ export default function App() {
                   </div>
                   {visibleProducts.length ? (
                     <div className="table-scroll">
-                      <table>
+                      <table className="responsive-table inventory-table">
                         <thead>
                           <tr>
                             <th>Produto / Serviço</th>
@@ -929,17 +904,16 @@ export default function App() {
                             <tr key={p.id}>
                               <td>
                                 <div className="sale-cell">
-                                  <ProductIcon product={p} />
                                   <div>
                                     <strong>{p.name}</strong>
                                     <small>{p.code}</small>
                                   </div>
                                 </div>
                               </td>
-                              <td className="muted">{p.category}</td>
-                              <td>{money(p.cost)}</td>
-                              <td className="amount">{money(p.price)}</td>
-                              <td>
+                              <td data-label="Categoria" className="muted">{p.category}</td>
+                              <td data-label="Custo">{money(p.cost)}</td>
+                              <td data-label="Preço de venda" className="amount">{money(p.price)}</td>
+                              <td data-label="Estoque">
                                 {p.type === "service" ? (
                                   <Badge tone="purple">Serviço</Badge>
                                 ) : (
@@ -960,7 +934,7 @@ export default function App() {
                                     setModal({ type: "product", product: p })
                                   }
                                 >
-                                  <Pencil size={16} />
+                                  <Pencil size={16} /><span className="mobile-action-label">Editar produto</span>
                                 </button>
                               </td>
                             </tr>
@@ -979,11 +953,16 @@ export default function App() {
             )}
 
             {page === "sales" && (
+              <>
+              <SaleForm state={state} commit={commit} openCash={() => setModal({ type: "open" })} />
+              <details className="section-gap sales-history">
+                <summary>Histórico de vendas · {state.sales.length} registros</summary>
               <section className="panel">
                 <div className="table-toolbar">
                   <label className="search-field">
                     <Search size={18} />
                     <input
+                      aria-label="Buscar histórico de vendas"
                       placeholder="Buscar venda ou produto..."
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
@@ -1002,10 +981,13 @@ export default function App() {
                   true,
                 )}
               </section>
+              </details>
+              </>
             )}
 
             {page === "cash" && (
               <>
+                <DailyClosing key={`${selectedDate}-${session?.id || "closed"}`} state={state} date={selectedDate} setDate={setSelectedDate} commit={commit} />
                 <section className="cash-banner">
                   <div>
                     <Badge tone={session ? "green" : "gray"}>
@@ -1015,7 +997,7 @@ export default function App() {
                     <h2>
                       {money(session ? cashBalance(state, session.id) : 0)}
                     </h2>
-                    <p>Dinheiro físico esperado no caixa atual</p>
+                    <p>Operação atual: dinheiro físico esperado</p>
                   </div>
                   <div className="cash-banner-detail">
                     <span>
@@ -1058,7 +1040,7 @@ export default function App() {
                     />
                   </div>
                   <div className="table-scroll">
-                    <table>
+                    <table className="responsive-table">
                       <thead>
                         <tr>
                           <th>Descrição</th>
@@ -1093,7 +1075,7 @@ export default function App() {
                               <td>
                                 <strong>{m.description}</strong>
                               </td>
-                              <td>
+                              <td data-label="Tipo">
                                 <Badge
                                   tone={
                                     ["sale", "supply"].includes(m.kind)
@@ -1111,9 +1093,10 @@ export default function App() {
                                   }
                                 </Badge>
                               </td>
-                              <td>{m.payment}</td>
-                              <td className="muted">{time(m.at)}</td>
+                              <td data-label="Pagamento">{m.payment}</td>
+                              <td data-label="Horário" className="muted">{time(m.at)}</td>
                               <td
+                                data-label="Valor"
                                 className={`align-right amount ${["sale", "supply"].includes(m.kind) ? "text-green" : "text-orange"}`}
                               >
                                 {["sale", "supply"].includes(m.kind)
@@ -1132,7 +1115,7 @@ export default function App() {
                     <h2>Histórico de fechamentos</h2>
                   </div>
                   <div className="table-scroll">
-                    <table>
+                    <table className="responsive-table">
                       <thead>
                         <tr>
                           <th>Fechamento</th>
@@ -1152,9 +1135,9 @@ export default function App() {
                                 {formatDate(dayKey(s.closedAt))},{" "}
                                 {time(s.closedAt)}
                               </td>
-                              <td>{money(s.expected)}</td>
-                              <td>{money(s.counted)}</td>
-                              <td>
+                              <td data-label="Esperado em dinheiro">{money(s.expected)}</td>
+                              <td data-label="Dinheiro contado">{money(s.counted)}</td>
+                              <td data-label="Diferença">
                                 <Badge
                                   tone={
                                     s.counted === s.expected ? "green" : "amber"
@@ -1208,12 +1191,12 @@ export default function App() {
                 <section className="panel">
                   <div className="panel-heading">
                     <h2>Suas contas</h2>
-                    <span className="muted">
-                      A despesa entra no caixa quando você paga.
-                    </span>
+                    <select aria-label="Filtrar situação das contas" value={billFilter} onChange={(e) => setBillFilter(e.target.value)}>
+                      {["Todas", "Em aberto", "Pagas"].map((status) => <option key={status}>{status}</option>)}
+                    </select>
                   </div>
                   <div className="table-scroll">
-                    <table>
+                    <table className="responsive-table">
                       <thead>
                         <tr>
                           <th>Descrição</th>
@@ -1225,6 +1208,7 @@ export default function App() {
                       </thead>
                       <tbody>
                         {[...state.bills]
+                          .filter((b) => billFilter === "Todas" || (billFilter === "Pagas" ? !!b.paidAt : !b.paidAt))
                           .sort((a, b) => a.due.localeCompare(b.due))
                           .map((b) => (
                             <tr key={b.id}>
@@ -1236,13 +1220,13 @@ export default function App() {
                                   <strong>{b.description}</strong>
                                 </div>
                               </td>
-                              <td>
+                              <td data-label="Vencimento">
                                 {new Date(
                                   `${b.due}T12:00:00`,
                                 ).toLocaleDateString("pt-BR")}
                               </td>
-                              <td className="amount">{money(b.amount)}</td>
-                              <td>
+                              <td data-label="Valor" className="amount">{money(b.amount)}</td>
+                              <td data-label="Situação">
                                 <Badge
                                   tone={
                                     b.paidAt
@@ -1279,6 +1263,7 @@ export default function App() {
                               </td>
                             </tr>
                           ))}
+                        {!state.bills.some((b) => billFilter === "Todas" || (billFilter === "Pagas" ? !!b.paidAt : !b.paidAt)) && <tr><td colSpan={5}><Empty>{billFilter === "Pagas" ? "Nenhuma conta paga. Registre um pagamento nas contas em aberto." : "Nenhuma conta neste filtro. Escolha outra situação ou cadastre uma nova conta."}</Empty></td></tr>}
                       </tbody>
                     </table>
                   </div>
@@ -1300,6 +1285,7 @@ export default function App() {
                     <label className="search-field">
                       <Search size={18} />
                       <input
+                        aria-label="Buscar produtos para etiquetas"
                         placeholder="Buscar produto..."
                         value={query}
                         onChange={(e) => setQuery(e.target.value)}
@@ -1307,6 +1293,7 @@ export default function App() {
                     </label>
                   </div>
                   <div className="label-product-list">
+                    {!visibleProducts.some((p) => p.type !== "service") && <Empty>Nenhum produto encontrado. Busque outro nome ou código.</Empty>}
                     {visibleProducts
                       .filter((p) => p.type !== "service")
                       .map((p) => (
@@ -1322,7 +1309,6 @@ export default function App() {
                               })
                             }
                           />
-                          <ProductIcon product={p} />
                           <div className="grow">
                             <strong>{p.name}</strong>
                             <small>{p.code}</small>
@@ -1352,8 +1338,8 @@ export default function App() {
                   </div>
                 </section>
                 <section className="panel label-preview">
-                  <h2>Prontas para a prateleira</h2>
-                  <p>Somente o código de barras, como você pediu.</p>
+                  <h2>Prévia de impressão</h2>
+                  <p>Etiquetas com código de barras, sem texto adicional.</p>
                   <div className="label-paper">
                     {labelProducts[0] ? (
                       <BarcodeImage code={labelProducts[0].code} />
@@ -1390,6 +1376,7 @@ export default function App() {
                     <span>Total de etiquetas</span>
                     <strong>{totalLabels}</strong>
                   </div>
+                  {totalLabels > 300 && <p className="form-error" role="alert">O limite é 300 etiquetas por impressão. Reduza as quantidades para continuar.</p>}
                   <button
                     className="button primary full-width"
                     disabled={!totalLabels || totalLabels > 300}
@@ -1463,7 +1450,7 @@ export default function App() {
                         footer={`Produtos e serviços: ${money(report.cost)}`}
                       />
                       <Metric
-                        label="Lucro estimado"
+                        label="Resultado das vendas"
                         value={money(report.profit)}
                         icon={TrendingUp}
                         color="green"
@@ -1477,7 +1464,7 @@ export default function App() {
                         </div>
                         {Object.values(ranking).length ? (
                           <div className="table-scroll">
-                            <table>
+                            <table className="responsive-table">
                               <thead>
                                 <tr>
                                   <th>Produto / Serviço</th>
@@ -1493,8 +1480,8 @@ export default function App() {
                                       <td>
                                         <strong>{p.name}</strong>
                                       </td>
-                                      <td>{p.quantity}</td>
-                                      <td className="align-right amount">
+                                      <td data-label="Quantidade">{p.quantity}</td>
+                                      <td data-label="Receita" className="align-right amount">
                                         {money(p.revenue)}
                                       </td>
                                     </tr>
@@ -1522,16 +1509,14 @@ export default function App() {
                             <dd>- {money(report.spent)}</dd>
                           </div>
                           <div className="result-total">
-                            <dt>Lucro estimado</dt>
+                            <dt>Resultado das vendas</dt>
                             <dd>{money(report.profit)}</dd>
                           </div>
                         </dl>
                         <p className="info-note">
-                          Esta é uma estimativa gerencial, não um demonstrativo
-                          contábil. Taxas de cartão e impostos não são
-                          calculados automaticamente. Contas pendentes, aportes
-                          e retiradas pessoais não entram neste resultado.
+                          Aqui, o resultado inclui vendas em todas as formas de pagamento, menos custos e despesas pagas. No Fluxo de caixa, o lucro do dia usa PIX + dinheiro − Transurc − CardMais.
                         </p>
+                        <p className="fine-print">Taxas de cartão e impostos não são calculados automaticamente.</p>
                       </section>
                     </div>
                   </>
@@ -1689,7 +1674,6 @@ export default function App() {
               <h3>Reposição de estoque</h3>
               {lowProducts.map((p) => (
                 <div className="alert-item" key={p.id}>
-                  <ProductIcon product={p} small />
                   <span>{p.name}</span>
                   <Badge tone="amber">{p.stock} un.</Badge>
                 </div>
@@ -2099,17 +2083,94 @@ function RecordForm({ modal, state, commit, close }) {
   );
 }
 
-function SaleForm({ state, commit, close }) {
+function DailyClosing({ state, date, setDate, commit }) {
+  const isOpen = !!activeSession(state);
+  const initial = dailyCash(state, date);
+  const groups = [
+    { title: "Dinheiro e PIX", description: "Recebimentos do dia", keys: ["cash", "pix"], tone: "receipts" },
+    { title: "Transurc e CardMais", description: "Saídas de passe público e recarga", keys: ["transurc", "cardmais"], tone: "services" },
+    { title: "Cartões", description: "Recebimentos na maquininha", keys: ["debit", "credit"], tone: "cards" },
+  ];
+  const fields = [
+    ["pix", "PIX recebido"], ["cash", "Dinheiro em caixa"],
+    ["credit", "Cartão de crédito"], ["debit", "Cartão de débito"],
+    ["transurc", "Saída Transurc"], ["cardmais", "Saída CardMais"],
+  ];
+  const [values, setValues] = useState(() => Object.fromEntries(fields.map(([key]) => [key, (initial[key] / 100).toFixed(2)])));
+  const [error, setError] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const amounts = Object.fromEntries(fields.map(([key]) => [key, cents(values[key])]));
+  const profit = amounts.pix + amounts.cash - amounts.transurc - amounts.cardmais;
+  function save() {
+    try {
+      if (!isOpen) throw Error("O caixa está fechado. Abra o caixa para alterar os totais diários.");
+      if (fields.some(([key]) => values[key] === "")) throw Error("Preencha todos os valores; use zero quando não houver movimento.");
+      commit({ type: "dailyClosing", date, values: amounts }, "Fechamento diário salvo.");
+      setDirty(false);
+      setError("");
+      return true;
+    } catch (e) { setError(e.message); return false; }
+  }
+  function changeDate(next) {
+    if (next && (!dirty || save())) setDate(next);
+  }
+  function shift(days) {
+    const next = new Date(`${date}T12:00:00`);
+    next.setDate(next.getDate() + days);
+    changeDate(dayKey(next));
+  }
+  return (
+    <section className="panel daily-closing">
+      <div className="panel-heading">
+        <div><h2>Fechamento diário</h2><p>{date === dayKey() ? "Hoje · " : ""}{new Date(`${date}T12:00:00`).toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p></div>
+        <div className="day-navigation">
+          <button className="icon-button" aria-label="Dia anterior" onClick={() => shift(-1)}><ChevronLeft size={20} /></button>
+          <input type="date" aria-label="Data do fechamento" value={date} onChange={(e) => changeDate(e.target.value)} />
+          <button className="icon-button" aria-label="Dia seguinte" onClick={() => shift(1)}><ChevronRight size={20} /></button>
+          <button className="button secondary" onClick={() => changeDate(dayKey())}>Hoje</button>
+        </div>
+      </div>
+      <form onSubmit={(e) => { e.preventDefault(); save(); }}>
+        <div className={`daily-status ${isOpen ? "open" : "closed"}`} role="status">
+          <Wallet size={22} />
+          <div><strong>{isOpen ? "Caixa aberto no momento" : "Caixa fechado no momento"}</strong><p>{isOpen ? "Edição liberada. Salve os totais antes de fechar o caixa." : "Somente consulta. Abra o caixa para editar os valores ou registrar movimentações."}</p></div>
+        </div>
+        <p className="muted">Confira os valores sugeridos e informe os totais do dia. Ao salvar, os valores ficam registrados nesta data.</p>
+        <div className="daily-groups">
+          {groups.map((group) => <section className={`daily-group ${group.tone}`} key={group.title} aria-label={group.title}>
+            <h3>{group.title}</h3><p>{group.description}</p>
+            <div className="daily-fields">
+              {group.keys.map((key) => {
+                const label = fields.find(([field]) => field === key)[1];
+                return <Field key={key} label={`${label} (R$)`} hint={key === "transurc" ? "Passe público da cidade" : key === "cardmais" ? "Máquina de recarga de celular" : undefined}>
+                  <input disabled={!isOpen} aria-label={`${label} (R$)`} type="number" min="0" step="0.01" required value={values[key]} onChange={(e) => { setValues({ ...values, [key]: e.target.value }); setDirty(true); }} />
+                </Field>;
+              })}
+            </div>
+          </section>)}
+        </div>
+        <div className="daily-result" aria-live="polite"><div><span>Lucro do dia</span><p>(PIX + Dinheiro em caixa) − (Transurc + CardMais)</p></div><strong>{money(profit)}</strong></div>
+        <p className="muted">Crédito e débito são registrados à parte e não entram nesta fórmula. Transurc e CardMais são descontados uma única vez neste cálculo.</p>
+        {error && <p className="form-error" role="alert">{error}</p>}
+        <div className="form-actions"><span className="muted">{dirty ? "Alterações pendentes" : initial.updatedAt ? "Totais conferidos e salvos" : "Totais sugeridos, ainda não conferidos"}</span><button className="button primary" type="submit" disabled={!isOpen}><Check size={17} />Salvar fechamento diário</button></div>
+      </form>
+    </section>
+  );
+}
+
+function SaleForm({ state, commit, close, openCash }) {
   const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("Todos");
   const [cart, setCart] = useState([]);
   const [payment, setPayment] = useState("Pix");
   const [received, setReceived] = useState("");
   const [error, setError] = useState("");
   const inputRef = useRef(null);
+  const cartRef = useRef(null);
   const products = state.products.filter((p) =>
     `${p.name} ${p.code}`
       .toLocaleLowerCase("pt-BR")
-      .includes(query.toLocaleLowerCase("pt-BR")),
+      .includes(query.toLocaleLowerCase("pt-BR")) && (category === "Todos" || p.category === category),
   );
   const total = cart.reduce(
     (n, i) => n + state.products.find((p) => p.id === i.id).price * i.quantity,
@@ -2132,8 +2193,6 @@ function SaleForm({ state, commit, close }) {
           )
         : [...cart, { id: product.id, quantity: 1 }],
     );
-    setQuery("");
-    inputRef.current?.focus();
   }
   function checkout(e) {
     e.preventDefault();
@@ -2143,21 +2202,27 @@ function SaleForm({ state, commit, close }) {
           { type: "sale", items: cart, payment, received: cents(received) },
           "Venda concluída. Estoque e caixa atualizados.",
         )
-      )
-        close();
+      ) {
+        setCart([]);
+        setReceived("");
+        setError("");
+        close?.();
+      }
     } catch (e) {
       setError(e.message);
     }
   }
   return (
-    <form onSubmit={checkout}>
+    <form className={close ? "" : "pos-form"} onSubmit={checkout}>
       <div className="sale-layout">
         <div className="sale-catalog">
+          <div className="catalog-heading"><h2>Produtos e serviços</h2><span>{products.length} na lista</span></div>
           <label className="search-field">
             <Search size={19} />
             <input
               ref={inputRef}
-              autoFocus
+              autoFocus={!!close}
+              aria-label="Buscar produtos para venda"
               placeholder="Nome ou código de barras"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -2167,7 +2232,7 @@ function SaleForm({ state, commit, close }) {
                   const found = state.products.find(
                     (p) => p.code === query.trim(),
                   );
-                  if (found) add(found);
+                  if (found) { add(found); setQuery(""); }
                   else
                     setError(
                       "Código não encontrado. Selecione um produto da lista.",
@@ -2177,6 +2242,10 @@ function SaleForm({ state, commit, close }) {
             />
             <Barcode size={20} />
           </label>
+          <div className="category-filters" role="group" aria-label="Categorias de venda">
+            {["Todos", ...new Set(state.products.map((p) => p.category))].map((c) => <button type="button" key={c} aria-pressed={category === c} onClick={() => setCategory(c)}>{c}</button>)}
+          </div>
+          <button type="button" className="mobile-cart-link button secondary" onClick={() => { cartRef.current?.scrollIntoView({ block: "start" }); cartRef.current?.focus({ preventScroll: true }); }}>Ver carrinho ({cart.reduce((n, i) => n + i.quantity, 0)}) · {money(total)}</button>
           <div className="catalog-list">
             {products.map((p) => (
               <button
@@ -2185,26 +2254,28 @@ function SaleForm({ state, commit, close }) {
                 key={p.id}
                 onClick={() => add(p)}
                 disabled={p.type !== "service" && p.stock === 0}
+                aria-label={`Adicionar ${p.name}`}
               >
-                <ProductIcon product={p} />
                 <span>
                   <strong>{p.name}</strong>
+                  <small>{p.category}</small>
                   <small>
                     {p.type === "service" ? "Serviço" : `${p.stock} em estoque`}{" "}
                     · {p.code}
                   </small>
                 </span>
                 <b>{money(p.price)}</b>
+                {cart.some((i) => i.id === p.id) && <span className="in-cart">{cart.find((i) => i.id === p.id).quantity} no carrinho</span>}
                 <Plus size={16} />
               </button>
             ))}
-            {!products.length && <Empty>Nenhum produto encontrado.</Empty>}
+            {!products.length && <Empty>Nenhum produto encontrado. Altere a busca ou selecione outra categoria.</Empty>}
           </div>
         </div>
-        <div className="sale-cart">
+        <div className="sale-cart" ref={cartRef} tabIndex={-1} aria-label="Carrinho da venda">
           <h3>
             <ShoppingBag size={18} />
-            Resumo da venda
+            Carrinho
             <span>{cart.reduce((n, i) => n + i.quantity, 0)} itens</span>
           </h3>
           <div className="cart-items">
@@ -2262,25 +2333,22 @@ function SaleForm({ state, commit, close }) {
             ) : (
               <div className="cart-empty">
                 <ShoppingBag size={36} />
-                <p>Sua venda começa aqui.</p>
-                <small>Selecione um produto ao lado.</small>
+                <p>Carrinho vazio</p>
+                <small>Selecione um produto no catálogo.</small>
               </div>
             )}
           </div>
-          <div className="cart-total">
+          <div className="cart-total" aria-live="polite" aria-atomic="true">
             <span>Total da venda</span>
             <strong>{money(total)}</strong>
           </div>
-          <Field label="Forma de pagamento">
-            <select
-              value={payment}
-              onChange={(e) => setPayment(e.target.value)}
-            >
-              {payments.map((p) => (
-                <option key={p}>{p}</option>
-              ))}
-            </select>
-          </Field>
+          <fieldset className="payment-options">
+            <legend>Forma de pagamento</legend>
+            {payments.map((p) => {
+              const Icon = paymentIcon(p);
+              return <button type="button" key={p} aria-pressed={payment === p} className={payment === p ? "selected" : ""} onClick={() => setPayment(p)}><Icon size={21} />{p}{payment === p && <Check size={14} />}</button>;
+            })}
+          </fieldset>
           {payment === "Dinheiro" && (
             <>
               <Field label="Valor recebido (R$)">
@@ -2307,31 +2375,18 @@ function SaleForm({ state, commit, close }) {
                 ? "O troco já será considerado no saldo do caixa."
                 : "Confirme o pagamento na maquininha. Sem integração ou cálculo automático de taxas."}
           </p>
+          <button type="submit" className="button primary full-width checkout-button" disabled={!cart.length || !activeSession(state)}><Check size={18} />Concluir venda · {money(total)}</button>
         </div>
       </div>
       {!activeSession(state) && (
-        <p className="form-error">
-          O caixa está fechado. Abra o caixa em Fluxo de caixa para vender.
-        </p>
+        <div className="info-note pos-closed"><strong>Caixa fechado</strong><p>Abra o caixa para concluir vendas. Você já pode montar o carrinho.</p>{openCash && <button type="button" className="button primary" onClick={openCash}>Abrir caixa</button>}</div>
       )}
       {error && (
         <p className="form-error" role="alert">
           {error}
         </p>
       )}
-      <div className="form-actions">
-        <button type="button" className="button secondary" onClick={close}>
-          Cancelar
-        </button>
-        <button
-          type="submit"
-          className="button primary"
-          disabled={!cart.length || !activeSession(state)}
-        >
-          <Check size={18} />
-          Concluir venda · {money(total)}
-        </button>
-      </div>
+      {close && <div className="form-actions"><button type="button" className="button secondary" onClick={close}>Cancelar</button></div>}
     </form>
   );
 }

@@ -54,10 +54,41 @@ export function summarize(state, from, to = from) {
   };
 }
 
+export function dailyCash(state, date) {
+  const summary = summarize(state, date);
+  const sessions = state.sessions.filter((s) => dayKey(s.closedAt || s.openedAt) === date);
+  const values = {
+    pix: summary.byPayment.Pix,
+    cash: sessions.reduce((sum, s) => sum + (s.closedAt ? s.counted : cashBalance(state, s.id)), 0),
+    credit: summary.byPayment.Crédito,
+    debit: summary.byPayment.Débito,
+    transurc: 0,
+    cardmais: 0,
+    ...(state.dailyClosings?.[date] || {}),
+  };
+  return { ...values, profit: values.pix + values.cash - values.transurc - values.cardmais };
+}
+
 export function transact(state, action) {
   const now = new Date().toISOString();
   const session = activeSession(state);
   switch (action.type) {
+    case "dailyClosing": {
+      if (!session) throw Error("O caixa está fechado. Abra o caixa para alterar os totais diários.");
+      const { date, values } = action;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || dayKey(new Date(`${date}T12:00:00`)) !== date)
+        throw Error("Informe uma data válida.");
+      const fields = ["pix", "cash", "credit", "debit", "transurc", "cardmais"];
+      if (!fields.every((key) => Number.isSafeInteger(values[key]) && values[key] >= 0))
+        throw Error("Informe valores válidos, iguais ou maiores que zero.");
+      return {
+        ...state,
+        dailyClosings: {
+          ...state.dailyClosings,
+          [date]: { ...Object.fromEntries(fields.map((key) => [key, values[key]])), updatedAt: now },
+        },
+      };
+    }
     case "product": {
       const p = action.product;
       if (!p.name.trim() || !/^[\x20-\x7E]{1,40}$/.test(p.code))
